@@ -3,50 +3,56 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-interface TimeBlock {
+// Renamed for clarity based on your latest version
+interface TimeSlot {
   _id: string;
   title: string;
   startTime: string;
 }
 
 export default function Dashboard() {
-  const [blocks, setBlocks] = useState<TimeBlock[]>([]);
+  const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [title, setTitle] = useState("");
   const [startTime, setStartTime] = useState("");
 
   const router = useRouter();
   const supabase = createClient();
 
-  const fetchBlocks = async () => {
+  const fetchSlots = async () => {
     const res = await fetch("/api/time-blocks");
     if (res.ok) {
       const data = await res.json();
-      setBlocks(data);
+      setSlots(data);
     }
   };
 
   useEffect(() => {
-    fetchBlocks();
+    fetchSlots();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!startTime) {
+      alert("Please select a start time.");
+      return;
+    }
+
     const startDate = new Date(startTime);
-    const endTime = new Date(new Date(startTime).getTime() + 60 * 60 * 1000);
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
 
     await fetch("/api/time-blocks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title,
-        startTime: startDate.toISOString(),
-        endTime: endTime.toISOString(),
+        startTime: startDate.toISOString(), // Send as UTC
+        endTime: endDate.toISOString(), // Send as UTC
       }),
     });
 
     setTitle("");
     setStartTime("");
-    fetchBlocks();
+    fetchSlots();
   };
 
   const handleLogout = async () => {
@@ -54,15 +60,15 @@ export default function Dashboard() {
     router.push("/");
   };
 
-  const handleDelete = async (blockId: string) => {
-    const res = await fetch(`/api/time-blocks/${blockId}`, {
+  const handleDelete = async (slotId: string) => {
+    const res = await fetch(`/api/time-blocks/${slotId}`, {
       method: "DELETE",
     });
 
     if (res.ok) {
-      fetchBlocks();
+      fetchSlots();
     } else {
-      alert("Failed to delete the block.");
+      alert("Failed to delete the slot.");
     }
   };
 
@@ -85,7 +91,7 @@ export default function Dashboard() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 rounded-lg bg-white p-6 shadow">
           <h2 className="mb-4 text-xl font-semibold text-gray-800">
-            Add a New Quiet Hour
+            Add a New Slot
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -102,7 +108,7 @@ export default function Dashboard() {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Deep Work Session"
                 required
-                className="mt-1 text-black block w-full rounded-md border-gray-300 px-3 py-2 shadow-sm  focus:outline-none"
+                className="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
@@ -118,15 +124,15 @@ export default function Dashboard() {
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 shadow-sm  focus:outline-none text-black"
+                className="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div className="text-right">
               <button
                 type="submit"
-                className="inline-flex cursor-pointer justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 focus:outline-none"
+                className="inline-flex cursor-pointer justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               >
-                Add Slots
+                Add Slot
               </button>
             </div>
           </form>
@@ -137,21 +143,21 @@ export default function Dashboard() {
             Your Scheduled Slots
           </h2>
           <div className="space-y-4">
-            {blocks.length > 0 ? (
-              blocks.map((block) => (
+            {slots.length > 0 ? (
+              slots.map((slot) => (
                 <div
-                  key={block._id}
+                  key={slot._id}
                   className="flex items-center justify-between rounded-lg bg-white p-4 shadow"
                 >
                   <div>
-                    <p className="font-semibold text-gray-900">{block.title}</p>
+                    <p className="font-semibold text-gray-900">{slot.title}</p>
                     <p className="text-sm text-gray-500">
-                      Starts: {new Date(block.startTime).toLocaleString()}
+                      Starts: {new Date(slot.startTime).toLocaleString()}
                     </p>
                   </div>
                   <button
-                    onClick={() => handleDelete(block._id)}
-                    className="cursor-pointer rounded-md p-1 text-sm font-medium text-red-600 transition-colors hover:text-red-800 focus:outline-none"
+                    onClick={() => handleDelete(slot._id)}
+                    className="cursor-pointer rounded-md p-1 text-sm font-medium text-red-600 transition-colors hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                   >
                     Delete
                   </button>
