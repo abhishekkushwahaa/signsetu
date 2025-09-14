@@ -31,6 +31,7 @@ export default function Dashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const startDate = new Date(startTime);
     const endTime = new Date(new Date(startTime).getTime() + 60 * 60 * 1000);
 
     await fetch("/api/time-blocks", {
@@ -38,7 +39,7 @@ export default function Dashboard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title,
-        startTime,
+        startTime: startDate.toISOString(),
         endTime: endTime.toISOString(),
       }),
     });
