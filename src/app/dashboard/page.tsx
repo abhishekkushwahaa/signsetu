@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-// Renamed for clarity based on your latest version
 interface TimeSlot {
   _id: string;
   title: string;
@@ -37,17 +36,26 @@ export default function Dashboard() {
       return;
     }
 
-    const startDate = new Date(startTime);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
+    const [datePart, timePart] = startTime.split("T");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hour, minute] = timePart.split(":").map(Number);
+
+    // Create the UTC ISO string manually
+    const startDateUTC = new Date(Date.UTC(year, month - 1, day, hour, minute));
+    const endDateUTC = new Date(startDateUTC.getTime() + 60 * 60 * 1000);
+
+    const payload = {
+      title,
+      startTime: startDateUTC.toISOString(),
+      endTime: endDateUTC.toISOString(),
+    };
+
+    console.log("Sending this payload to the server:", payload);
 
     await fetch("/api/time-blocks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title,
-        startTime: startDate.toISOString(), // Send as UTC
-        endTime: endDate.toISOString(), // Send as UTC
-      }),
+      body: JSON.stringify(payload),
     });
 
     setTitle("");
