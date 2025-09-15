@@ -1,52 +1,55 @@
-// supabase/functions/send-reminders/index.ts
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { MongoClient } from "https://deno.land/x/mongo@v0.32.0/mod.ts";
-import { Resend } from 'npm:resend';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@^2";
+import { Resend } from "npm:resend";
 
-const MONGODB_URI = Deno.env.get("MONGODB_URI")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 
 serve(async (_req) => {
-  const mongoClient = new MongoClient();
   try {
-    await mongoClient.connect(MONGODB_URI);
-    const db = mongoClient.database("quiet_hours_db");
-    const timeBlocksCollection = db.collection("time_blocks");
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
     const resend = new Resend(RESEND_API_KEY);
 
-    const now = new Date();
-    const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
+    // --- MODIFIED QUERY: We removed the broken time check ---
+    // This will now find ALL slots that haven't been sent a reminder yet.
+    const { data: upcomingSlots, error } = await supabaseAdmin
+      .from("time_slots")
+      .select("*")
+      .eq("notification_sent", false);
 
-    const upcomingBlocks = await timeBlocksCollection.find({
-      startTime: { $gte: now, $lt: tenMinutesFromNow },
-      notificationSent: false,
-    }).toArray();
+    if (error) throw error;
+    if (upcomingSlots.length === 0)
+      return new Response("No upcoming slots to process.", { status: 200 });
 
-    if (upcomingBlocks.length === 0) {
-      return new Response("No upcoming blocks to process.", { status: 200 });
-    }
-
-    for (const block of upcomingBlocks) {
-      // You would normally fetch the user's email from a `users` table
-      const userEmail = "your-verified-test-email@example.com"; 
+    for (const slot of upcomingSlots) {
+      const { data: user, error: userError } =
+        await supabaseAdmin.auth.admin.getUserById(slot.user_id);
+      if (userError || !user.user?.email) continue;
 
       await resend.emails.send({
-        from: 'Reminder <onboarding@resend.dev>',
-        to: [userEmail],
-        subject: `Reminder: "${block.title}" starts in 10 minutes`,
-        html: `<p>This is a reminder that your scheduled quiet time, <strong>${block.title}</strong>, is starting at ${new Date(block.startTime).toLocaleTimeString()}.</p>`,
+        from: "Reminder <onboarding@resend.dev>",
+        to: ["genius.abhishek.sir@gmail.com"],
+        subject: `Reminder: Your slot "${slot.title}" starts soon`,
+        html: `<p>Reminder for your scheduled slot: <strong>${slot.title}</strong>.</p>`,
       });
 
-      // CRITICAL: Mark as sent to prevent duplicate notifications
-      await timeBlocksCollection.updateOne(
-        { _id: block._id },
-        { $set: { notificationSent: true } }
-      );
+      await supabaseAdmin
+        .from("time_slots")
+        .update({ notification_sent: true })
+        .eq("id", slot.id);
     }
-    return new Response(JSON.stringify({ message: `Processed ${upcomingBlocks.length} notifications.` }), { status: 200 });
+
+    return new Response(
+      JSON.stringify({
+        message: `Processed ${upcomingSlots.length} notifications.`,
+      }),
+      { status: 200 }
+    );
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-  } finally {
-    await mongoClient.close();
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+    });
   }
-})
+});

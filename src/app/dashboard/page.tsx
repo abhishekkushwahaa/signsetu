@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
 interface TimeSlot {
-  _id: string;
+  id: string;
   title: string;
-  startTime: string;
+  start_time: string;
 }
 
 export default function Dashboard() {
@@ -35,27 +35,17 @@ export default function Dashboard() {
       alert("Please select a start time.");
       return;
     }
-
-    const [datePart, timePart] = startTime.split("T");
-    const [year, month, day] = datePart.split("-").map(Number);
-    const [hour, minute] = timePart.split(":").map(Number);
-
-    // Create the UTC ISO string manually
-    const startDateUTC = new Date(Date.UTC(year, month - 1, day, hour, minute));
-    const endDateUTC = new Date(startDateUTC.getTime() + 60 * 60 * 1000);
-
-    const payload = {
-      title,
-      startTime: startDateUTC.toISOString(),
-      endTime: endDateUTC.toISOString(),
-    };
-
-    console.log("Sending this payload to the server:", payload);
+    const startDate = new Date(startTime);
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
 
     await fetch("/api/time-blocks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        title,
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString(),
+      }),
     });
 
     setTitle("");
@@ -154,17 +144,20 @@ export default function Dashboard() {
             {slots.length > 0 ? (
               slots.map((slot) => (
                 <div
-                  key={slot._id}
+                  // --- FIX #2: Use the correct key from Postgres ---
+                  key={slot.id}
                   className="flex items-center justify-between rounded-lg bg-white p-4 shadow"
                 >
                   <div>
                     <p className="font-semibold text-gray-900">{slot.title}</p>
                     <p className="text-sm text-gray-500">
-                      Starts: {new Date(slot.startTime).toLocaleString()}
+                      {/* --- FIX #3: Use the correct property for the date --- */}
+                      Starts: {new Date(slot.start_time).toLocaleString()}
                     </p>
                   </div>
                   <button
-                    onClick={() => handleDelete(slot._id)}
+                    // --- FIX #4: Use the correct ID for the delete function ---
+                    onClick={() => handleDelete(slot.id)}
                     className="cursor-pointer rounded-md p-1 text-sm font-medium text-red-600 transition-colors hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                   >
                     Delete
